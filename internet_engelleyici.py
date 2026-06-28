@@ -32,12 +32,14 @@ class App(ctk.CTk):
         self.tabview.pack(padx=20, pady=20, fill="both", expand=True)
         self.tab_sites = self.tabview.add("Web Siteleri")
         self.tab_programs = self.tabview.add("Programlar")
+        self.tab_hosts = self.tabview.add("Hosts Dosyası")
         
         self.last_deleted_site = None
         self.last_deleted_program = None
         
         self.setup_sites_tab()
         self.setup_programs_tab()
+        self.setup_hosts_tab()
 
     # ==================== SİTE ENGELLEME BÖLÜMÜ ====================
     def setup_sites_tab(self):
@@ -130,6 +132,10 @@ class App(ctk.CTk):
         # Mevcut listeyi temizle
         for widget in self.sites_scroll.winfo_children():
             widget.destroy()
+            
+        # Senkronizasyon: Hosts sekmesindeki text kutusunu da güncelle
+        if hasattr(self, 'hosts_textbox'):
+            self.load_hosts_content()
             
         try:
             with open(HOSTS_PATH, "r") as f:
@@ -321,6 +327,45 @@ class App(ctk.CTk):
                         btn = ctk.CTkButton(item_frame, text="Engeli Kaldır", width=100, fg_color="#c0392b", hover_color="#922b21",
                                             command=lambda b=base_name: self.remove_program(b))
                         btn.pack(side="right", padx=10, pady=5)
+
+    # ==================== HOSTS MANUEL DÜZENLEME BÖLÜMÜ ====================
+    def setup_hosts_tab(self):
+        self.tab_hosts.grid_columnconfigure(0, weight=1)
+        self.tab_hosts.grid_rowconfigure(0, weight=1)
+        
+        # Textbox (Sabit genişlikli font ile düzgün görünüm)
+        self.hosts_textbox = ctk.CTkTextbox(self.tab_hosts, wrap="none", font=ctk.CTkFont(family="Consolas", size=13))
+        self.hosts_textbox.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        
+        # Butonlar
+        btn_frame = ctk.CTkFrame(self.tab_hosts, fg_color="transparent")
+        btn_frame.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="ew")
+        
+        refresh_btn = ctk.CTkButton(btn_frame, text="Yenile", width=100, command=self.load_hosts_content)
+        refresh_btn.pack(side="left", padx=5)
+        
+        save_btn = ctk.CTkButton(btn_frame, text="Değişiklikleri Kaydet", width=150, fg_color="#27ae60", hover_color="#2ecc71", command=self.save_hosts_content)
+        save_btn.pack(side="right", padx=5)
+
+    def load_hosts_content(self):
+        try:
+            with open(HOSTS_PATH, "r") as f:
+                content = f.read()
+            self.hosts_textbox.delete("1.0", 'end')
+            self.hosts_textbox.insert("1.0", content)
+        except Exception as e:
+            self.hosts_textbox.delete("1.0", 'end')
+            self.hosts_textbox.insert("1.0", f"Hosts dosyası okunamadı:\n{str(e)}")
+
+    def save_hosts_content(self):
+        content = self.hosts_textbox.get("1.0", 'end-1c') # Son boş satırı almamak için end-1c
+        try:
+            with open(HOSTS_PATH, "w") as f:
+                f.write(content)
+            messagebox.showinfo("Başarılı", "Hosts dosyası başarıyla güncellendi.")
+            self.load_blocked_sites() # Ana listeyi de yeni dosya içeriğine göre senkronize et
+        except Exception as e:
+            messagebox.showerror("Hata", f"Hosts dosyası kaydedilemedi:\n{str(e)}")
 
 if __name__ == "__main__":
     if is_admin():
