@@ -86,11 +86,13 @@ class App(ctk.CTk):
             with open(HOSTS_PATH, "r") as f:
                 lines = f.readlines()
             
-            # Daha önce eklenmiş mi kontrolü
+            # Daha önce eklenmiş mi kontrolü (Tam eşleşme ile kontrol)
             for line in lines:
-                if not line.strip().startswith("#") and site in line:
-                    messagebox.showinfo("Bilgi", "Bu site zaten engellenmiş durumda.")
-                    return
+                if not line.strip().startswith("#"):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1].lower() == site:
+                        messagebox.showinfo("Bilgi", "Bu site zaten engellenmiş durumda.")
+                        return
             
             # Dosyanın sonuna yönlendirme kuralını ekle
             with open(HOSTS_PATH, "a") as f:
@@ -132,9 +134,9 @@ class App(ctk.CTk):
                 # Zaten engelli olanları tespit edip tekrar eklemeyi önleyelim
                 existing_sites = set()
                 for line in lines:
-                    if not line.strip().startswith("#") and REDIRECT_IP in line:
+                    if not line.strip().startswith("#"):
                         parts = line.split()
-                        if len(parts) >= 2:
+                        if len(parts) >= 2 and (REDIRECT_IP in line or "0.0.0.0" in line):
                             existing_sites.add(parts[1].lower())
                 
                 with open(HOSTS_PATH, "a") as f:
@@ -169,7 +171,14 @@ class App(ctk.CTk):
                 
             with open(HOSTS_PATH, "w") as f:
                 for line in lines:
-                    if not line.strip().startswith("#") and site_to_remove in line:
+                    is_match = False
+                    if not line.strip().startswith("#"):
+                        parts = line.split()
+                        # Silinecek sitenin tam adı eşleşiyorsa satırı atla
+                        if len(parts) >= 2 and parts[1].lower() == site_to_remove:
+                            is_match = True
+                            
+                    if is_match:
                         continue # Engellenecek siteyi içeren satırı atla
                     f.write(line)
                     
@@ -200,11 +209,11 @@ class App(ctk.CTk):
                 
             for line in lines:
                 line = line.strip()
-                # Yorum satırı değilse ve 127.0.0.1 içeriyorsa
-                if not line.startswith("#") and REDIRECT_IP in line:
+                # Yorum satırı değilse ve 127.0.0.1 veya 0.0.0.0 içeriyorsa
+                if not line.startswith("#") and (REDIRECT_IP in line or "0.0.0.0" in line):
                     parts = line.split()
                     if len(parts) >= 2:
-                        site = parts[1]
+                        site = parts[1].lower()
                         # localhost'u atla (sistemin kendi yönlendirmesi)
                         if site == "localhost":
                             continue 
