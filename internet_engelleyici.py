@@ -377,8 +377,16 @@ if __name__ == "__main__":
         # Python script dosya yolu sys.argv[0]'da bulunur. PyInstaller vb. ile build edilirse sys.executable olur.
         if getattr(sys, 'frozen', False):
             # Derlenmiş exe ise
-            subprocess.run(['powershell', '-Command', f"Start-Process -FilePath '{sys.executable}' -ArgumentList '\"{' '.join(sys.argv[1:])}\"' -Verb RunAs"], shell=True)
+            subprocess.run(['powershell', '-WindowStyle', 'Hidden', '-Command', f"Start-Process -FilePath '{sys.executable}' -ArgumentList '\"{' '.join(sys.argv[1:])}\"' -Verb RunAs -WindowStyle Hidden"], shell=True, creationflags=0x08000000)
         else:
-            # Script ise.
+            # Script ise
             script_path = os.path.abspath(__file__)
-            subprocess.run(['powershell', '-Command', f"Start-Process -FilePath '{sys.executable}' -ArgumentList '\"{script_path}\"' -Verb RunAs"], shell=True)
+            
+            # Arka planda siyah terminal penceresinin kalmaması için pythonw.exe kullanmayı dene
+            executable = sys.executable
+            if executable.lower().endswith("python.exe"):
+                pythonw_path = executable[:-10] + "pythonw.exe"
+                if os.path.exists(pythonw_path):
+                    executable = pythonw_path
+
+            subprocess.run(['powershell', '-WindowStyle', 'Hidden', '-Command', f"Start-Process -FilePath '{executable}' -ArgumentList '\"{script_path}\"' -Verb RunAs -WindowStyle Hidden"], shell=True, creationflags=0x08000000)
