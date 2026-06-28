@@ -55,7 +55,10 @@ class App(ctk.CTk):
         self.site_entry.grid(row=0, column=0, padx=(10, 5), pady=10, sticky="ew")
         
         add_btn = ctk.CTkButton(add_frame, text="Siteyi Engelle", width=120, command=self.add_site)
-        add_btn.grid(row=0, column=1, padx=(5, 10), pady=10)
+        add_btn.grid(row=0, column=1, padx=(5, 5), pady=10)
+        
+        bulk_add_btn = ctk.CTkButton(add_frame, text="Toplu Ekle", width=100, fg_color="#8e44ad", hover_color="#9b59b6", command=self.open_bulk_add_window)
+        bulk_add_btn.grid(row=0, column=2, padx=(5, 10), pady=10)
         
         # Engellenen Siteler Listesi Paneli
         header_frame = ctk.CTkFrame(self.tab_sites, fg_color="transparent")
@@ -101,6 +104,59 @@ class App(ctk.CTk):
             messagebox.showinfo("Başarılı", f"'{site}' başarıyla engellendi.")
         except Exception as e:
             messagebox.showerror("Hata", f"Hosts dosyasına erişilemedi (Yönetici izni gerekiyor olabilir):\n{str(e)}")
+
+    def open_bulk_add_window(self):
+        top = ctk.CTkToplevel(self)
+        top.title("Toplu Site Engelleme")
+        top.geometry("400x400")
+        top.transient(self) # Ana pencerenin üstünde kalsın
+        top.grab_set() # Kullanıcı işlemi bitirmeden ana pencereye geçemesin
+        
+        lbl = ctk.CTkLabel(top, text="Her satıra bir site adresi gelecek şekilde listeyi yapıştırın:")
+        lbl.pack(padx=10, pady=(10, 5), anchor="w")
+        
+        textbox = ctk.CTkTextbox(top, wrap="none")
+        textbox.pack(padx=10, pady=5, fill="both", expand=True)
+        
+        def apply_bulk_add():
+            sites = textbox.get("1.0", "end").strip().splitlines()
+            if not sites:
+                messagebox.showwarning("Uyarı", "Lütfen en az bir site adresi girin.", parent=top)
+                return
+                
+            added_count = 0
+            try:
+                with open(HOSTS_PATH, "r") as f:
+                    lines = f.readlines()
+                
+                # Zaten engelli olanları tespit edip tekrar eklemeyi önleyelim
+                existing_sites = set()
+                for line in lines:
+                    if not line.strip().startswith("#") and REDIRECT_IP in line:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            existing_sites.add(parts[1].lower())
+                
+                with open(HOSTS_PATH, "a") as f:
+                    # Satır sonu eksikse yeni satıra geçmek garanti olsun
+                    if lines and not lines[-1].endswith("\n"):
+                        f.write("\n")
+                        
+                    for site in sites:
+                        site = site.strip().lower()
+                        if site and site not in existing_sites and site != "localhost":
+                            f.write(f"{REDIRECT_IP} {site}\n")
+                            existing_sites.add(site)
+                            added_count += 1
+                
+                self.load_blocked_sites()
+                top.destroy()
+                messagebox.showinfo("Başarılı", f"Toplam {added_count} adet yeni site başarıyla engellendi.")
+            except Exception as e:
+                messagebox.showerror("Hata", f"Hosts dosyasına erişilemedi:\n{str(e)}", parent=top)
+                
+        btn = ctk.CTkButton(top, text="Tümünü Engelle", command=apply_bulk_add, fg_color="#27ae60", hover_color="#2ecc71")
+        btn.pack(padx=10, pady=10, fill="x")
 
     def remove_site(self, site_to_remove):
         try:

@@ -6,6 +6,7 @@ Bu dosyada `İnternet Engelleyici` projesinde yapılan tüm önemli değişiklik
 
 ### Eklenenler (Added)
 - Uygulama ana ekranına ve pencere başlığına sürüm numarası (`v1.1.0`) eklendi.
+- "Toplu Ekle" butonu sayesinde, alt alta liste halindeki siteleri kopyalayıp yapıştırarak tek seferde engelleme özelliği eklendi.
 - "Hosts Dosyası" sekmesi eklenerek dosyayı canlı görüntüleme ve manuel düzenleme imkanı getirildi.
 - "Geri Al" (Undo) özelliği eklendi. Yanlışlıkla silinen site ve program engelleri tek tuşla geri getirilebiliyor.
 
