@@ -2,6 +2,17 @@
 
 Bu dosyada `İnternet Engelleyici` projesinde yapılan tüm önemli değişiklikler sürümler halinde tutulmaktadır.
 
+## [1.1.0] - 2026-06-28
+
+### Eklenenler (Added)
+- Uygulama ana ekranına ve pencere başlığına sürüm numarası (`v1.1.0`) eklendi.
+- "Hosts Dosyası" sekmesi eklenerek dosyayı canlı görüntüleme ve manuel düzenleme imkanı getirildi.
+- "Geri Al" (Undo) özelliği eklendi. Yanlışlıkla silinen site ve program engelleri tek tuşla geri getirilebiliyor.
+
+### Düzeltilenler (Fixed)
+- Güvenlik duvarı (`netsh`) çıktılarındaki Türkçe karakter uyuşmazlığından kaynaklı programın çökme hatası giderildi (Unicode Decode Hatası).
+- Program arka planda UAC izniyle başlatıldığında ekranda siyah terminal penceresi kalması sorunu `pythonw` kullanılarak düzeltildi.
+
 ## [1.0.0] - 2026-06-28
 
 ### Eklenenler (Added)

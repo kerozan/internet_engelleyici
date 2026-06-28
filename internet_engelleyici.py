@@ -12,6 +12,7 @@ ctk.set_default_color_theme("blue")
 HOSTS_PATH = r"C:\Windows\System32\drivers\etc\hosts"
 REDIRECT_IP = "127.0.0.1"
 FIREWALL_RULE_PREFIX = "NetBlocker_"
+APP_VERSION = "v1.1.0"
 
 def is_admin():
     """Programın yönetici haklarıyla çalışıp çalışmadığını kontrol eder."""
@@ -23,7 +24,7 @@ def is_admin():
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("İnternet ve Program Engelleyici (NetBlocker)")
+        self.title(f"İnternet ve Program Engelleyici (NetBlocker) - {APP_VERSION}")
         self.geometry("700x550")
         self.resizable(False, False)
         
