@@ -33,6 +33,9 @@ class App(ctk.CTk):
         self.tab_sites = self.tabview.add("Web Siteleri")
         self.tab_programs = self.tabview.add("Programlar")
         
+        self.last_deleted_site = None
+        self.last_deleted_program = None
+        
         self.setup_sites_tab()
         self.setup_programs_tab()
 
@@ -52,8 +55,14 @@ class App(ctk.CTk):
         add_btn.grid(row=0, column=1, padx=(5, 10), pady=10)
         
         # Engellenen Siteler Listesi Paneli
-        list_label = ctk.CTkLabel(self.tab_sites, text="Engellenen Siteler", font=ctk.CTkFont(weight="bold"))
-        list_label.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="w")
+        header_frame = ctk.CTkFrame(self.tab_sites, fg_color="transparent")
+        header_frame.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="ew")
+        
+        list_label = ctk.CTkLabel(header_frame, text="Engellenen Siteler", font=ctk.CTkFont(weight="bold"))
+        list_label.pack(side="left")
+        
+        self.undo_site_btn = ctk.CTkButton(header_frame, text="Geri Al (Undo)", width=80, height=24, state="disabled", command=self.undo_site_removal)
+        self.undo_site_btn.pack(side="right")
         
         self.sites_scroll = ctk.CTkScrollableFrame(self.tab_sites)
         self.sites_scroll.grid(row=2, column=0, padx=10, pady=(5, 10), sticky="nsew")
@@ -92,6 +101,10 @@ class App(ctk.CTk):
 
     def remove_site(self, site_to_remove):
         try:
+            # Geri alma (Undo) için sakla
+            self.last_deleted_site = site_to_remove
+            self.undo_site_btn.configure(state="normal")
+            
             with open(HOSTS_PATH, "r") as f:
                 lines = f.readlines()
                 
@@ -104,6 +117,14 @@ class App(ctk.CTk):
             self.load_blocked_sites()
         except Exception as e:
             messagebox.showerror("Hata", f"Hosts dosyası güncellenemedi:\n{str(e)}")
+
+    def undo_site_removal(self):
+        if self.last_deleted_site:
+            self.site_entry.delete(0, 'end')
+            self.site_entry.insert(0, self.last_deleted_site)
+            self.add_site()
+            self.last_deleted_site = None
+            self.undo_site_btn.configure(state="disabled")
 
     def load_blocked_sites(self):
         # Mevcut listeyi temizle
@@ -159,8 +180,14 @@ class App(ctk.CTk):
         add_btn.grid(row=0, column=2, padx=(5, 10), pady=10)
         
         # Engellenen Programlar Listesi Paneli
-        list_label = ctk.CTkLabel(self.tab_programs, text="Engellenen Programlar", font=ctk.CTkFont(weight="bold"))
-        list_label.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="w")
+        header_frame = ctk.CTkFrame(self.tab_programs, fg_color="transparent")
+        header_frame.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="ew")
+        
+        list_label = ctk.CTkLabel(header_frame, text="Engellenen Programlar", font=ctk.CTkFont(weight="bold"))
+        list_label.pack(side="left")
+        
+        self.undo_prog_btn = ctk.CTkButton(header_frame, text="Geri Al (Undo)", width=80, height=24, state="disabled", command=self.undo_prog_removal)
+        self.undo_prog_btn.pack(side="right")
         
         self.programs_scroll = ctk.CTkScrollableFrame(self.tab_programs)
         self.programs_scroll.grid(row=2, column=0, padx=10, pady=(5, 10), sticky="nsew")
@@ -185,8 +212,11 @@ class App(ctk.CTk):
         try:
             # CREATE_NO_WINDOW konsol ekranının yanıp sönmesini engeller
             CREATE_NO_WINDOW = 0x08000000 
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
-            return result.returncode == 0, result.stdout
+            # text=True parametresini kaldırıp byte olarak alıyoruz ve manuel decode yapıyoruz
+            result = subprocess.run(cmd, shell=True, capture_output=True, creationflags=CREATE_NO_WINDOW)
+            # Çıktıdaki tanımsız Türkçe karakterlerin çökme yapmaması için errors='ignore' kullanıyoruz
+            output = result.stdout.decode('cp1254', errors='ignore') if result.stdout else ""
+            return result.returncode == 0, output
         except Exception as e:
             return False, str(e)
 
@@ -217,7 +247,23 @@ class App(ctk.CTk):
         else:
             messagebox.showerror("Hata", f"Güvenlik duvarı kuralı oluşturulurken hata oluştu.\nOut: {msg_out}\nIn: {msg_in}")
 
+    def get_program_path_from_rule(self, rule_name):
+        success, output = self.run_cmd(f'netsh advfirewall firewall show rule name="{rule_name}" verbose')
+        if success:
+            for line in output.splitlines():
+                if line.strip().startswith("Program:"):
+                    path = line.split(":", 1)[1].strip()
+                    if path:
+                        return path
+        return None
+
     def remove_program(self, rule_base_name):
+        # Silmeden önce Undo için yolu öğren ve sakla
+        path = self.get_program_path_from_rule(f"{rule_base_name}_Out")
+        if path:
+            self.last_deleted_program = path
+            self.undo_prog_btn.configure(state="normal")
+            
         cmd_out = f'netsh advfirewall firewall delete rule name="{rule_base_name}_Out"'
         cmd_in = f'netsh advfirewall firewall delete rule name="{rule_base_name}_In"'
         
@@ -225,6 +271,17 @@ class App(ctk.CTk):
         self.run_cmd(cmd_in)
         
         self.load_blocked_programs()
+
+    def undo_prog_removal(self):
+        if self.last_deleted_program:
+            self.selected_exe_path = self.last_deleted_program
+            self.prog_entry.configure(state="normal")
+            self.prog_entry.delete(0, 'end')
+            self.prog_entry.insert(0, self.selected_exe_path)
+            self.prog_entry.configure(state="disabled")
+            self.add_program()
+            self.last_deleted_program = None
+            self.undo_prog_btn.configure(state="disabled")
 
     def load_blocked_programs(self):
         # Mevcut listeyi temizle
@@ -275,7 +332,8 @@ if __name__ == "__main__":
         # Python script dosya yolu sys.argv[0]'da bulunur. PyInstaller vb. ile build edilirse sys.executable olur.
         if getattr(sys, 'frozen', False):
             # Derlenmiş exe ise
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv[1:]), None, 1)
+            subprocess.run(['powershell', '-Command', f"Start-Process -FilePath '{sys.executable}' -ArgumentList '\"{' '.join(sys.argv[1:])}\"' -Verb RunAs"], shell=True)
         else:
-            # Script ise
-            ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{os.path.abspath(__file__)}"', None, 1)
+            # Script ise.
+            script_path = os.path.abspath(__file__)
+            subprocess.run(['powershell', '-Command', f"Start-Process -FilePath '{sys.executable}' -ArgumentList '\"{script_path}\"' -Verb RunAs"], shell=True)
