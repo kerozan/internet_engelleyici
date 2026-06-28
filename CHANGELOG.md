@@ -2,6 +2,13 @@
 
 Bu dosyada `İnternet Engelleyici` projesinde yapılan tüm önemli değişiklikler sürümler halinde tutulmaktadır.
 
+## [1.1.1] - 2026-06-28
+
+### Düzeltilenler (Fixed) & Performans (Performance)
+- **Çoklu Domain Desteği:** `0.0.0.0 site1 site2 site3` gibi aynı satırda birden fazla site engellemesinin yapıldığı "çok uzun host satırları" için tam destek eklendi. Artık bu sitelerin tümü okunuyor ve silerken sadece istenilen site satırdan temizlenip diğerleri korunuyor.
+- **Arayüz Çökme (Freeze) Önlemi:** On binlerce sitenin bulunduğu devasa `hosts` dosyalarında (Örn: StevenBlack listeleri) uygulamanın arayüzünün donmasını önlemek için listeleme işlemine maksimum `1000` satır limiti getirildi. 
+- **Hosts Sekmesi Bellek Optimizasyonu:** `hosts` dosyası `500 KB`'tan büyük olduğunda "Hosts Dosyası" sekmesindeki metin kutusu çökmemesi için kendini devre dışı bırakıp kullanıcıyı uyarıyor.
+
 ## [1.1.0] - 2026-06-28
 
 ### Eklenenler (Added)

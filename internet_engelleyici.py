@@ -12,7 +12,7 @@ ctk.set_default_color_theme("blue")
 HOSTS_PATH = r"C:\Windows\System32\drivers\etc\hosts"
 REDIRECT_IP = "127.0.0.1"
 FIREWALL_RULE_PREFIX = "NetBlocker_"
-APP_VERSION = "v1.1.0"
+APP_VERSION = "v1.1.1"
 
 def is_admin():
     """Programın yönetici haklarıyla çalışıp çalışmadığını kontrol eder."""
@@ -90,9 +90,11 @@ class App(ctk.CTk):
             for line in lines:
                 if not line.strip().startswith("#"):
                     parts = line.split()
-                    if len(parts) >= 2 and parts[1].lower() == site:
-                        messagebox.showinfo("Bilgi", "Bu site zaten engellenmiş durumda.")
-                        return
+                    if len(parts) >= 2 and (parts[0] == REDIRECT_IP or parts[0] == "0.0.0.0"):
+                        domains = [d.lower() for d in parts[1:]]
+                        if site in domains:
+                            messagebox.showinfo("Bilgi", "Bu site zaten engellenmiş durumda.")
+                            return
             
             # Dosyanın sonuna yönlendirme kuralını ekle
             with open(HOSTS_PATH, "a") as f:
@@ -136,8 +138,9 @@ class App(ctk.CTk):
                 for line in lines:
                     if not line.strip().startswith("#"):
                         parts = line.split()
-                        if len(parts) >= 2 and (REDIRECT_IP in line or "0.0.0.0" in line):
-                            existing_sites.add(parts[1].lower())
+                        if len(parts) >= 2 and (parts[0] == REDIRECT_IP or parts[0] == "0.0.0.0"):
+                            for d in parts[1:]:
+                                existing_sites.add(d.lower())
                 
                 with open(HOSTS_PATH, "a") as f:
                     # Satır sonu eksikse yeni satıra geçmek garanti olsun
@@ -171,15 +174,18 @@ class App(ctk.CTk):
                 
             with open(HOSTS_PATH, "w") as f:
                 for line in lines:
-                    is_match = False
                     if not line.strip().startswith("#"):
                         parts = line.split()
-                        # Silinecek sitenin tam adı eşleşiyorsa satırı atla
-                        if len(parts) >= 2 and parts[1].lower() == site_to_remove:
-                            is_match = True
-                            
-                    if is_match:
-                        continue # Engellenecek siteyi içeren satırı atla
+                        if len(parts) >= 2 and (parts[0] == REDIRECT_IP or parts[0] == "0.0.0.0"):
+                            domains = [d.lower() for d in parts[1:]]
+                            if site_to_remove in domains:
+                                domains.remove(site_to_remove)
+                                if len(domains) == 0:
+                                    continue # Sadece bu site varsa satırı tamamen sil
+                                else:
+                                    # Aynı satırda başka siteler de varsa (örn: 0.0.0.0 site1 site2), onları koruyup satırı yeniden yaz
+                                    f.write(f"{parts[0]} {' '.join(domains)}\n")
+                                    continue
                     f.write(line)
                     
             self.load_blocked_sites()
@@ -207,26 +213,36 @@ class App(ctk.CTk):
             with open(HOSTS_PATH, "r") as f:
                 lines = f.readlines()
                 
+            count = 0
+            MAX_UI_ITEMS = 1000 # Arayüzün binlerce satırda çökmesini (freeze) önlemek için sınır
+            
             for line in lines:
                 line = line.strip()
-                # Yorum satırı değilse ve 127.0.0.1 veya 0.0.0.0 içeriyorsa
-                if not line.startswith("#") and (REDIRECT_IP in line or "0.0.0.0" in line):
+                # Yorum satırı değilse
+                if not line.startswith("#"):
                     parts = line.split()
-                    if len(parts) >= 2:
-                        site = parts[1].lower()
-                        # localhost'u atla (sistemin kendi yönlendirmesi)
-                        if site == "localhost":
-                            continue 
-                        
-                        item_frame = ctk.CTkFrame(self.sites_scroll)
-                        item_frame.pack(fill="x", pady=2, padx=2)
-                        
-                        lbl = ctk.CTkLabel(item_frame, text=site)
-                        lbl.pack(side="left", padx=10, pady=5)
-                        
-                        btn = ctk.CTkButton(item_frame, text="Engeli Kaldır", width=100, fg_color="#c0392b", hover_color="#922b21",
-                                            command=lambda s=site: self.remove_site(s))
-                        btn.pack(side="right", padx=10, pady=5)
+                    if len(parts) >= 2 and (parts[0] == REDIRECT_IP or parts[0] == "0.0.0.0"):
+                        for site in parts[1:]:
+                            site = site.lower()
+                            # localhost'u atla (sistemin kendi yönlendirmesi)
+                            if site == "localhost":
+                                continue 
+                            
+                            if count < MAX_UI_ITEMS:
+                                item_frame = ctk.CTkFrame(self.sites_scroll)
+                                item_frame.pack(fill="x", pady=2, padx=2)
+                                
+                                lbl = ctk.CTkLabel(item_frame, text=site)
+                                lbl.pack(side="left", padx=10, pady=5)
+                                
+                                btn = ctk.CTkButton(item_frame, text="Engeli Kaldır", width=100, fg_color="#c0392b", hover_color="#922b21",
+                                                    command=lambda s=site: self.remove_site(s))
+                                btn.pack(side="right", padx=10, pady=5)
+                            count += 1
+                            
+            if count > MAX_UI_ITEMS:
+                lbl = ctk.CTkLabel(self.sites_scroll, text=f"... ve {count - MAX_UI_ITEMS} site daha engellendi.\n(Performans için arayüzde gizlendi)", text_color="#f1c40f")
+                lbl.pack(padx=10, pady=10)
         except Exception as e:
             lbl = ctk.CTkLabel(self.sites_scroll, text=f"Dosya okuma hatası: {str(e)}")
             lbl.pack(padx=10, pady=10)
@@ -415,15 +431,29 @@ class App(ctk.CTk):
 
     def load_hosts_content(self):
         try:
+            file_size = os.path.getsize(HOSTS_PATH)
+            if file_size > 500 * 1024:  # 500 KB'tan büyükse yükleme (Arayüz çökmesini önler)
+                self.hosts_textbox.configure(state="normal")
+                self.hosts_textbox.delete("1.0", 'end')
+                self.hosts_textbox.insert("1.0", f"Hosts dosyası çok büyük ({file_size/1024:.1f} KB).\nArayüzün donmaması/çökmemesi için metin yüklenmedi.\n\nLütfen bu boyuttaki dosyaları düzenlemek için Notepad veya \nVS Code gibi harici bir editör kullanın.")
+                self.hosts_textbox.configure(state="disabled")
+                return
+                
             with open(HOSTS_PATH, "r") as f:
                 content = f.read()
+            self.hosts_textbox.configure(state="normal")
             self.hosts_textbox.delete("1.0", 'end')
             self.hosts_textbox.insert("1.0", content)
         except Exception as e:
+            self.hosts_textbox.configure(state="normal")
             self.hosts_textbox.delete("1.0", 'end')
             self.hosts_textbox.insert("1.0", f"Hosts dosyası okunamadı:\n{str(e)}")
 
     def save_hosts_content(self):
+        if self.hosts_textbox.cget("state") == "disabled":
+            messagebox.showwarning("Uyarı", "Hosts dosyası çok büyük olduğu için manuel düzenlemeye kapatıldı.")
+            return
+            
         content = self.hosts_textbox.get("1.0", 'end-1c') # Son boş satırı almamak için end-1c
         try:
             with open(HOSTS_PATH, "w") as f:
